@@ -1,6 +1,19 @@
+import re
+
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+
+EMAIL_PATTERN = re.compile(r"^[\w\.-]+@[\w\.-]+\.\w+$")
+
+
+class LoginSchema(BaseModel):
+    account: str = Field(..., min_length=3, max_length=64)
+    password: str = Field(..., min_length=6, max_length=128)
+
+
+class RefreshSchema(BaseModel):
+    token: str = Field(..., min_length=1)
 
 
 # ===== User =====
@@ -9,12 +22,12 @@ class UserCreate(BaseModel):
     username: str = Field(..., min_length=1, max_length=64)
     password: str = Field(..., min_length=6, max_length=128)
     email: str | None = None
-    role: str = "student"
+    role: str = Field("student", pattern=r"^(student|teacher)$")
 
 
 class UserUpdate(BaseModel):
-    username: str | None = None
-    email: str | None = None
+    username: str | None = Field(None, min_length=1, max_length=64)
+    email: str | None = Field(None, max_length=128, pattern=EMAIL_PATTERN)
     is_active: bool | None = None
 
 
@@ -203,8 +216,8 @@ class QuestionChunkOut(BaseModel):
 
 # ===== Model =====
 class ModelCreate(BaseModel):
-    name: str
-    mode: int
+    name: str = Field(..., min_length=1, max_length=64)
+    mode: int = Field(..., ge=1, le=2)
 
 
 class ModelOut(BaseModel):
@@ -216,21 +229,12 @@ class ModelOut(BaseModel):
 
 
 # ===== Config =====
-class ConfigCreate(BaseModel):
-    user_id: int
-    rec_mode: str = "aliyun"
-    enable_enhance: bool = True
-    enable_knowledge: bool = True
-    vl_model: str | None = None
-    gl_model: str | None = None
-
-
 class ConfigUpdate(BaseModel):
-    rec_mode: str | None = None
+    rec_mode: str | None = Field(None, pattern=r"^(aliyun|bailian)$")
     enable_enhance: bool | None = None
     enable_knowledge: bool | None = None
-    vl_model: str | None = None
-    gl_model: str | None = None
+    vl_model: str | None = Field(None, max_length=64)
+    gl_model: str | None = Field(None, max_length=64)
 
 
 class ConfigOut(BaseModel):
@@ -245,3 +249,51 @@ class ConfigOut(BaseModel):
     update_time: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+# ===== Homework Result =====
+class BlockInfo(BaseModel):
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+
+
+class CorrectionInfo(BaseModel):
+    score: float
+    result: str
+    comment: str | None = None
+    analysis: str | None = None
+
+
+class KnowledgeRef(BaseModel):
+    knowledge_id: int
+    title: str
+    content: str
+    score: float
+
+
+class QuestionResult(BaseModel):
+    no: str
+    question_text: str | None = None
+    student_answer: str | None = None
+    question_type: str | None = None
+    create_time: str | None = None
+    blocks: list[BlockInfo] = []
+    correction: CorrectionInfo | None = None
+    knowledge_refs: list[KnowledgeRef] = []
+
+
+class ImageInfo(BaseModel):
+    url: str
+
+
+class HomeworkResult(BaseModel):
+    task_id: str
+    status: str
+    subject: str | None = None
+    grade: str | None = None
+    mode: str | None = None
+    create_time: str | None = None
+    images: list[ImageInfo] = []
+    questions: list[QuestionResult] = []

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 T = TypeVar("T")
 
@@ -26,13 +26,13 @@ class SortDirection(str, Enum):
 
 
 class SortField(BaseModel):
-    field: str
+    field: str = Field(..., min_length=1)
     direction: SortDirection = SortDirection.ASC
 
 
 class PageDTO(BaseModel):
-    page_num: int = 1
-    page_size: int = 10
+    page_num: int = Field(1, ge=1)
+    page_size: int = Field(10, ge=1, le=100)
     sort_fields: list[SortField] | None = None
     query: dict | None = None
 
