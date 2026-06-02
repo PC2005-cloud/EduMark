@@ -13,6 +13,7 @@ class Config(Base):
     user_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
     rec_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="aliyun")
     enable_enhance: Mapped[bool] = mapped_column(Boolean, default=True)
+    enable_knowledge: Mapped[bool] = mapped_column(Boolean, default=True)
     vl_model: Mapped[str] = mapped_column(String(64), nullable=True)
     gl_model: Mapped[str] = mapped_column(String(64), nullable=True)
     create_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)

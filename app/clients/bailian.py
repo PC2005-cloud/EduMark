@@ -8,12 +8,11 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class RecognizeResult:
-    question_text: str = ""
-    student_answer: str = ""
-    question_type: str = ""
+    question: str = ""
+    answer: str = ""
+    type: str = ""
 
 
 @dataclass
@@ -35,22 +34,24 @@ class BailianClient:
         }
         logger.info("百炼客户端初始化: base=%s", self._base)
 
-    def recognize_question(self, image_bytes: bytes, model: str = "qwen-vl-plus") -> RecognizeResult:
-        logger.info("视觉模型识别题目: model=%s size=%d", model, len(image_bytes))
-        b64 = base64.b64encode(image_bytes).decode()
-        messages = [{
-            "role": "user",
-            "content": [
-                {"image": f"data:image/jpeg;base64,{b64}"},
-                {"text": "请识别这张作业图片中的内容，严格按以下格式返回，不要有多余内容：\n"
-                 "题目：<题目文本>\n学生答案：<学生作答内容>\n题目类型：<选择题/填空题/计算题/解答题>"},
-            ],
-        }]
-        text = self._call_multimodal(messages, model)
-        result = self._parse_recognize(text)
-        logger.info("题目识别完成: 题目数=%d, 类型=%s",
-                     result.question_text.count("\n") + 1, result.question_type)
-        return result
+    def recognize_question(self, images: list[bytes], model: str = "qwen-vl-plus") -> list[RecognizeResult]:
+        logger.info("视觉模型识别题目: model=%s 图片数=%d", model, len(images))
+        all_items = []
+        for img_bytes in images:
+            b64 = base64.b64encode(img_bytes).decode()
+            messages = [{
+                "role": "user",
+                "content": [
+                    {"image": f"data:image/jpeg;base64,{b64}"},
+                    {"text": "请识别这张作业图片中的所有题目，按 JSON 格式返回，不要有多余内容：\n"
+                     '[{"question": "<题目文本>", "answer": "<学生答案>", "type": "<选择题/填空题/计算题/解答题>"}]'},
+                ],
+            }]
+            text = self._call_multimodal(messages, model)
+            items = self._parse_recognize(text)
+            all_items.extend(items)
+        logger.info("题目识别完成: 题目数=%d", len(all_items))
+        return all_items
 
     def grade_question(self, question: str, student_answer: str,
                        knowledge_chunks: list[str] | None = None,
@@ -60,6 +61,7 @@ class BailianClient:
                      len(knowledge_chunks) if knowledge_chunks else 0)
         system_prompt = (
             "你是一位专业的作业批改老师。请根据题目和标准答案（如有）对学生答案进行批改。"
+            "得分只返回数字，不要带单位（满分10分）。"
             "按以下格式返回：\n得分：\n结果：correct/wrong/partial\n评语：\n解题分析："
         )
         user_content = f"题目：{question}\n学生答案：{student_answer}"
@@ -144,22 +146,27 @@ class BailianClient:
         return content
 
     @staticmethod
-    def _parse_recognize(text: str) -> RecognizeResult:
-        result = RecognizeResult()
-        questions, answers, types = [], [], []
-        for line in text.split("\n"):
-            line = line.strip()
-            if line.startswith("题目") and "：" in line:
-                questions.append(line.split("：", 1)[-1].strip())
-            elif line.startswith("学生答案") and "：" in line:
-                answers.append(line.split("：", 1)[-1].strip())
-            elif line.startswith("题目类型") and "：" in line:
-                types.append(line.split("：", 1)[-1].strip())
-        result.question_text = "\n".join(questions)
-        result.student_answer = "\n".join(answers)
-        result.question_type = types[0] if types else ""
-        logger.debug("解析识别结果: %d 题", len(questions))
-        return result
+    def _parse_recognize(text: str) -> list[RecognizeResult]:
+        import json
+        text = text.strip()
+        start = text.find("[")
+        end = text.rfind("]")
+        if start != -1 and end != -1:
+            text = text[start:end + 1]
+        try:
+            raw = json.loads(text)
+            items = []
+            for r in raw if isinstance(raw, list) else [raw]:
+                items.append(RecognizeResult(
+                    question=r.get("question", r.get("题目", "")),
+                    answer=r.get("answer", r.get("学生答案", "")),
+                    type=r.get("type", r.get("题目类型", "")),
+                ))
+            logger.debug("解析识别结果: %d 题", len(items))
+            return items
+        except json.JSONDecodeError as e:
+            logger.warning("JSON 解析失败: %s", e)
+            return []
 
     @staticmethod
     def _parse_grade(text: str) -> GradeResult:

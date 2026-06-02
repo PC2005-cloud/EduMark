@@ -1,8 +1,9 @@
 import logging
 from dataclasses import dataclass
 
+import httpx
 from qdrant_client import QdrantClient as _QdrantClient
-from qdrant_client.http.models import Distance, FieldCondition, Filter, MatchValue, PointStruct, VectorParams
+from qdrant_client.http.models import Distance, PointStruct, VectorParams
 
 from app.core.config import settings
 
@@ -26,6 +27,7 @@ class QdrantClient:
             api_key=settings.QDRANT_API_KEY or None,
         )
         self._collection = settings.QDRANT_COLLECTION
+        self._http = httpx.Client(base_url=f"http://{settings.QDRANT_HOST}:{settings.QDRANT_HTTP_PORT}")
         logger.info("Qdrant 客户端初始化: host=%s port=%d collection=%s",
                      settings.QDRANT_HOST, settings.QDRANT_HTTP_PORT, self._collection)
 
@@ -49,33 +51,37 @@ class QdrantClient:
                score_threshold: float | None = None,
                filter_conditions: dict | None = None):
         logger.info("搜索向量: top_k=%d filter=%s", top_k, filter_conditions)
-        _filter = None
+        payload: dict = {
+            "vector": query_vector,
+            "limit": top_k,
+            "with_payload": True,
+        }
+        if score_threshold is not None:
+            payload["score_threshold"] = score_threshold
         if filter_conditions:
-            conditions = [
-                FieldCondition(key=k, match=MatchValue(value=v))
-                for k, v in filter_conditions.items()
-            ]
-            _filter = Filter(must=conditions)
-
-        result = self._client.query_points(
-            collection_name=self._collection,
-            query=query_vector,
-            limit=top_k,
-            score_threshold=score_threshold,
-            query_filter=_filter,
+            payload["filter"] = {
+                "must": [
+                    {"key": k, "match": {"value": v}}
+                    for k, v in filter_conditions.items()
+                ]
+            }
+        resp = self._http.post(
+            f"/collections/{self._collection}/points/search",
+            json=payload,
+            timeout=30,
         )
-        logger.info("搜索完成: %d 条结果", len(result.points))
-        return result.points
+        resp.raise_for_status()
+        result = resp.json()
+        logger.info("搜索完成: %d 条结果", len(result.get("result", [])))
+        return result.get("result", [])
 
     def delete(self, filter_conditions: dict):
         logger.info("删除向量: filter=%s", filter_conditions)
-        conditions = [
-            FieldCondition(key=k, match=MatchValue(value=v))
-            for k, v in filter_conditions.items()
-        ]
         self._client.delete(
             collection_name=self._collection,
-            points_selector=Filter(must=conditions),
+            points_selector={"filter": {
+                "must": [{"key": k, "match": {"value": v}} for k, v in filter_conditions.items()]
+            }},
         )
         logger.info("删除完成: filter=%s", filter_conditions)
 
