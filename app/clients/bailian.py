@@ -48,6 +48,7 @@ class BailianClient:
                 ],
             }]
             text = self._call_multimodal(messages, model)
+            logger.info("百炼原始返回: %s", text)
             items = self._parse_recognize(text)
             all_items.extend(items)
         logger.info("题目识别完成: 题目数=%d", len(all_items))

@@ -10,6 +10,7 @@ from app.core.security import create_access_token, create_refresh_token, decode_
 from app.dao.user_dao import UserDAO
 from app.models import get_db
 from app.models.user import User
+from app.models.config import Config
 from app.schemas import UserCreate, UserOut, LoginSchema, RefreshSchema
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,8 @@ def register(data: UserCreate, db: Session = Depends(get_db)):
     user = User(account=data.account, username=data.username,
                 password=hash_password(data.password), email=data.email, role=data.role)
     user = dao.create(user)
+    db.add(Config(user_id=user.id))
+    db.commit()
     return Result.success(UserOut.model_validate(user))
 
 

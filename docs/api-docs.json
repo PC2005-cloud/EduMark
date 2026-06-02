@@ -399,6 +399,11 @@
         "summary": "删除知识文档",
         "description": "删除知识文档，同步清理MinIO和Qdrant",
         "operationId": "delete_knowledge_api_v1_knowledge__id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -667,6 +672,49 @@
         "summary": "查询批改结果",
         "description": "查询批改结果，含题目/答案/得分/评语/知识引用",
         "operationId": "get_result_api_v1_homework_result__task_id__get",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/homework/task/{task_id}": {
+      "delete": {
+        "summary": "删除作业",
+        "description": "删除作业及相关题目/批改结果",
+        "operationId": "delete_task_api_v1_homework_task__task_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "task_id",
@@ -1254,6 +1302,7 @@
           },
           "role": {
             "type": "string",
+            "pattern": "^(student|teacher)$",
             "title": "Role",
             "default": "student"
           }

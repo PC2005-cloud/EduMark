@@ -15,20 +15,17 @@ from app.dao.correction_dao import CorrectionDAO
 from app.dao.block_dao import BlockDAO
 from app.clients.minio import minio_client
 from app.models import get_db
-from app.models.task import Task
 from app.models.image import Image
-from app.models.question import Question
-from app.models.correction import Correction
-from app.models.block import Block
 from app.models.knowledge import Knowledge
 from app.models.question_chunk import QuestionChunk
+from app.models.task import Task
 from app.schemas import HomeworkResult, QuestionResult, BlockInfo, CorrectionInfo, ImageInfo, TaskOut, KnowledgeRef
 from app.tasks.homework_tasks import homework_grading
 
 logger = logging.getLogger(__name__)
 
 
-@router_v1.post("/homework/submit")
+@router_v1.post("/homework/submit", summary="提交作业", description="提交作业，返回task_id")
 async def submit_homework(
     files: list[UploadFile] = File(...),
     current_user: dict = Depends(get_current_user),
@@ -36,8 +33,6 @@ async def submit_homework(
 ):
     logger.info("提交作业: user_id=%s files=%d", current_user["id"], len(files))
 
-    # 存 MinIO + 建 Task + 建 Image
-    minio_client.ensure_bucket()
     task_uuid = str(uuid.uuid4())
 
     image_urls = []
@@ -58,7 +53,7 @@ async def submit_homework(
     return Result.success({"task_id": task_uuid})
 
 
-@router_v1.post("/homework/task/page")
+@router_v1.post("/homework/task/page", summary="分页查询任务", description="分页查询作业任务")
 def page_task(dto: PageDTO, db: Session = Depends(get_db)):
     logger.info("分页查询作业任务, page=%d size=%d", dto.page_num, dto.page_size)
     result = TaskDAO(db).list(page=dto.page_num, page_size=dto.page_size)
@@ -66,14 +61,14 @@ def page_task(dto: PageDTO, db: Session = Depends(get_db)):
     return Result.success(result)
 
 
-@router_v1.get("/homework/status/{task_id}")
+@router_v1.get("/homework/status/{task_id}", summary="查询批改进度", description="查询作业批改进度")
 def get_status(task_id: str, db: Session = Depends(get_db)):
     logger.info("查询任务状态, task_id=%s", task_id)
     t = TaskDAO(db).get_by_task_id(task_id)
     return Result.success({"task_id": task_id, "status": t.status if t else "not found"})
 
 
-@router_v1.get("/homework/result/{task_id}")
+@router_v1.get("/homework/result/{task_id}", summary="查询批改结果", description="查询批改结果，含题目/答案/得分/评语/知识引用")
 def get_result(task_id: str, db: Session = Depends(get_db)):
     logger.info("查询批改结果, task_id=%s", task_id)
 
@@ -119,3 +114,18 @@ def get_result(task_id: str, db: Session = Depends(get_db)):
         images=images, questions=question_results,
     )
     return Result.success(result)
+
+
+@router_v1.delete("/homework/task/{task_id}", summary="删除作业", description="删除作业及相关题目/批改结果")
+def delete_task(task_id: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    logger.info("删除作业, task_id=%s user_id=%s", task_id, current_user["id"])
+    task = TaskDAO(db).get_by_task_id(task_id)
+    if not task:
+        return Result.error("not found")
+    if task.user_id != current_user["id"] and current_user["role"] != "admin":
+        return Result.error("只能删除自己的作业")
+
+    TaskDAO(db).cascade_delete(task_id)
+    db.commit()
+    logger.info("作业已删除: task_id=%s", task_id)
+    return Result.success()

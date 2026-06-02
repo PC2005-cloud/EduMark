@@ -15,14 +15,14 @@ from app.schemas import ConfigUpdate, ConfigOut
 logger = logging.getLogger(__name__)
 
 
-@router_v1.get("/config/me")
+@router_v1.get("/config/me", summary="获取配置", description="获取当前用户配置")
 def get_my_config(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     logger.info("查询当前用户配置, user_id=%s", current_user["id"])
     c = ConfigDAO(db).get_by_user_id(current_user["id"])
     return Result.success(ConfigOut.model_validate(c)) if c else Result.error("not found")
 
 
-@router_v1.put("/config/me")
+@router_v1.put("/config/me", summary="修改配置", description="修改当前用户配置，含模型校验")
 def update_my_config(data: ConfigUpdate, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     logger.info("更新当前用户配置, user_id=%s", current_user["id"])
 

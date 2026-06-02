@@ -11,11 +11,41 @@ from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.response import Result
 
+# 配置根日志输出到控制台
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(name)s %(message)s'
+)
+
+
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("正在预热各服务连接...")
+    try:
+        from app.clients.minio import minio_client
+        minio_client.ensure_bucket()
+        logger.info("MinIO 连接就绪")
+    except Exception as e:
+        logger.warning("MinIO 预热失败: %s", e)
+
+    try:
+        from app.clients.qdrant import qdrant
+        qdrant.ensure_collection()
+        logger.info("Qdrant 连接就绪")
+    except Exception as e:
+        logger.warning("Qdrant 预热失败: %s", e)
+
+    try:
+        from app.models import engine
+        with engine.connect() as conn:
+            conn.execute(__import__("sqlalchemy").text("SELECT 1"))
+        logger.info("MySQL 连接就绪")
+    except Exception as e:
+        logger.warning("MySQL 预热失败: %s", e)
+
     yield
 
 
