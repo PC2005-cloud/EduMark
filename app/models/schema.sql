@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS `config` (
     `id`          INT          NOT NULL AUTO_INCREMENT  COMMENT '主键',
     `user_id`     INT          NOT NULL                 COMMENT '用户 FK → user.id',
     `rec_mode`    VARCHAR(16)  NOT NULL DEFAULT 'aliyun' COMMENT '识别模式: aliyun/bailian',
+    `enable_enhance` TINYINT(1) NOT NULL DEFAULT 1    COMMENT '是否开启图片增强',
     `vl_model`    VARCHAR(64)  DEFAULT NULL             COMMENT '视觉模型名称',
     `gl_model`    VARCHAR(64)  DEFAULT NULL             COMMENT '批改模型名称',
     `create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     BAILIAN_API_BASE: str = "https://dashscope.aliyuncs.com/api/v1"
     BAILIAN_EMBED: str = "text-embedding-v4"
 
+    # Celery
+    CELERY_BROKER_URL: str = "redis://localhost:7379/1"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:7379/1"
+    CELERY_TASK_TIMEOUT: int = 300
+    CELERY_MAX_RETRIES: int = 3
+
     # Qdrant
     QDRANT_HOST: str = "localhost"
     QDRANT_HTTP_PORT: int = 7333

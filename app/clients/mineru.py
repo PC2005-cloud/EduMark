@@ -6,11 +6,25 @@ from typing import Optional
 from zipfile import ZipFile
 
 import httpx
+from pypdf import PdfReader, PdfWriter
 
 from app.core.config import settings
 from app.clients.bailian import bailian
 
 logger = logging.getLogger(__name__)
+
+MAX_PAGE = 200
+MAX_SIZE = 200 * 1024 * 1024
+BLOCK_MIN_SIZE = 500
+BLOCK_MAX_SIZE = 2000
+
+SUPPORTED_TYPES = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+]
 
 
 # ==================== 数据类 ====================
@@ -86,6 +100,14 @@ class ContentItem:
         item.table_body = d.get("table_body")
         return item
 
+    @staticmethod
+    def copy_to_text(item: "ContentItem") -> "ContentItem":
+        new_item = ContentItem()
+        new_item.type = ContentType.TEXT
+        new_item.bbox = item.bbox
+        new_item.page_idx = item.page_idx
+        return new_item
+
 
 class PollingResult:
     def __init__(self):
@@ -105,15 +127,15 @@ class MineruClient:
         self._base = settings.MINERU_URL.rstrip("/")
         self._file_urls_url = f"{self._base}/file-urls/batch"
         self._extract_results_url = f"{self._base}/extract-results/batch"
-        self._poll_interval = 5
-        self._timeout = 300
         logger.info("MinerU 客户端初始化: base=%s", self._base)
 
-    def upload_and_parse(self, file_data: bytes, filename: str) -> str:
+    def upload_and_parse(self, file_data: bytes, filename: str,
+                         content_type: str | None = None) -> str:
         logger.info("上传并解析: filename=%s size=%d", filename, len(file_data))
-        batch_id, upload_urls = self._apply_upload_urls([(file_data, filename)])
-        self._upload_files([(file_data, filename)], upload_urls)
-        logger.info("上传解析完成: batch_id=%s", batch_id)
+        files = self._validate_and_split(file_data, filename, content_type)
+        batch_id, upload_urls = self._apply_upload_urls(files)
+        self._upload_files(files, upload_urls)
+        logger.info("上传解析完成: batch_id=%s 文件数=%d", batch_id, len(files))
         return batch_id
 
     def get_zip_urls(self, batch_id: str) -> PollingResult:
@@ -171,20 +193,177 @@ class MineruClient:
             pictures = self._parse_images(zip_data)
 
             for item in content:
-                item.page_idx = item.page_idx + 1 + i * 200
+                item.page_idx = item.page_idx + 1 + i * MAX_PAGE
 
             logger.debug("ZIP[%d] 内容: %d 项, %d 张图片", i, len(content), len(pictures))
             all_content.extend(content)
             all_pictures.update(pictures)
 
-        result = self._merge_content(all_content, all_pictures, process_images)
-        logger.info("解析结果处理完成: %d 项 (%d 文本, %d 图片)",
-                     len(result),
-                     sum(1 for c in result if c.type == ContentType.TEXT),
-                     sum(1 for c in result if c.type == ContentType.IMAGE))
-        return result
+        return self._handle_content(all_content, all_pictures, process_images)
 
-    # ==================== 内部方法 ====================
+    # ==================== 校验与分割 ====================
+
+    def _get_pdf_page_count(self, file_data: bytes) -> int:
+        reader = PdfReader(BytesIO(file_data))
+        return len(reader.pages)
+
+    def _split_pdf(self, file_data: bytes, filename: str) -> list[tuple[bytes, str]]:
+        reader = PdfReader(BytesIO(file_data))
+        total = len(reader.pages)
+        logger.info("分割PDF: %s %d 页, 每 %d 页一份", filename, total, MAX_PAGE)
+
+        name = filename.rsplit(".", 1)[0]
+        suffix = filename.rsplit(".", 1)[1]
+        files = []
+
+        for i in range(0, total, MAX_PAGE):
+            writer = PdfWriter()
+            end = min(i + MAX_PAGE, total)
+            for page_num in range(i, end):
+                writer.add_page(reader.pages[page_num])
+            buf = BytesIO()
+            writer.write(buf)
+            split_name = f"{name}(大文件分片)-{i // MAX_PAGE + 1}.{suffix}"
+            files.append((buf.getvalue(), split_name))
+            writer.close()
+            logger.debug("分割块 %d: 页 %d-%d", i // MAX_PAGE + 1, i + 1, end)
+
+        return files
+
+    def _validate_and_split(self, file_data: bytes, filename: str,
+                            content_type: str | None = None) -> list[tuple[bytes, str]]:
+        size_mb = len(file_data) / 1024 / 1024
+        logger.info("校验文件: %s size=%.1fMB", filename, size_mb)
+        if len(file_data) > MAX_SIZE:
+            logger.error("文件过大: %.1fMB > %dMB", size_mb, MAX_SIZE // 1024 // 1024)
+            raise ValueError(f"文件大小超过 {MAX_SIZE // 1024 // 1024}MB")
+
+        if filename.lower().endswith(".pdf"):
+            pages = self._get_pdf_page_count(file_data)
+            logger.info("PDF 页数: %d, 上限: %d 页", pages, MAX_PAGE)
+            if pages > MAX_PAGE:
+                logger.info("PDF 超过 %d 页, 开始分割", MAX_PAGE)
+                return self._split_pdf(file_data, filename)
+            logger.debug("PDF 未超过上限, 直接上传")
+        else:
+            logger.debug("非 PDF 文件, 跳过页数检查: %s", filename)
+
+        return [(file_data, filename)]
+
+    # ==================== 内容处理 ====================
+
+    def _handle_content(self, content: list[ContentItem],
+                        pictures: dict[str, bytes],
+                        process_images: bool = True) -> list[ContentItem]:
+        result = []
+        pending_images = []
+        filtered = 0
+
+        for item in content:
+            if item.type == ContentType.PAGE_NUMBER or item.type == ContentType.HEADER:
+                filtered += 1
+                continue
+
+            if item.type == ContentType.IMAGE:
+                pending_images.append(item)
+                continue
+
+            if item.type == ContentType.TEXT or item.type == ContentType.EQUATION:
+                text = item.text or ""
+                if len(text) > BLOCK_MAX_SIZE:
+                    logger.debug("文本超长: %d 字, 分块处理", len(text))
+                    for chunk in self._split_text(text):
+                        new_item = ContentItem.copy_to_text(item)
+                        new_item.text = chunk
+                        result.append(new_item)
+                else:
+                    result.append(item)
+                continue
+
+            if item.type == ContentType.TABLE:
+                body = item.table_body or ""
+                if not body.strip():
+                    logger.debug("表格内容为空, 跳过")
+                    continue
+                caption = ", ".join(item.table_caption)
+                footnote = ", ".join(item.table_footnote)
+                chunks = self._split_text(body)
+                for chunk in chunks:
+                    new_item = ContentItem.copy_to_text(item)
+                    texts = []
+                    if caption:
+                        texts.append(f"表格标题:{caption}")
+                    texts.append(f"表格内容:{chunk}")
+                    if footnote:
+                        texts.append(f"表格脚注:{footnote}")
+                    new_item.text = "\n".join(texts)
+                    result.append(new_item)
+                logger.debug("表格处理: body=%d 字 → %d 块", len(body), len(chunks))
+                continue
+
+            if item.type == ContentType.LIST:
+                join_text = "".join(item.list_items)
+                if not join_text.strip():
+                    logger.debug("列表内容为空, 跳过")
+                    continue
+                chunks = self._split_text(join_text)
+                for chunk in chunks:
+                    new_item = ContentItem.copy_to_text(item)
+                    new_item.text = chunk
+                    result.append(new_item)
+                logger.debug("列表处理: %d 项 → %d 块", len(item.list_items), len(chunks))
+                continue
+
+            result.append(item)
+
+        logger.debug("内容处理: 原始 %d 项, 过滤 %d 项(PAGE_NUMBER/HEADER), 剩余 %d 项, 待处理图片 %d 张",
+                     len(content), filtered, len(result), len(pending_images))
+
+        if process_images and pending_images:
+            logger.info("开始处理图片: %d 张", len(pending_images))
+            processed = self._process_images(pending_images, pictures)
+            result.extend(processed)
+        else:
+            result.extend(pending_images)
+
+        return self._merge_adjacent_text(result)
+
+    def _split_text(self, text: str) -> list[str]:
+        if len(text) <= BLOCK_MAX_SIZE:
+            return [text]
+        chunks = []
+        for i in range(0, len(text), BLOCK_MAX_SIZE):
+            chunks.append(text[i:i + BLOCK_MAX_SIZE])
+        logger.debug("文本分块: %d 字 → %d 块 (上限 %d)", len(text), len(chunks), BLOCK_MAX_SIZE)
+        return chunks
+
+    def _merge_adjacent_text(self, items: list[ContentItem]) -> list[ContentItem]:
+        merged = []
+        merged_count = 0
+        for item in items:
+            if item.type != ContentType.TEXT:
+                merged.append(item)
+                continue
+            if not merged or merged[-1].type != ContentType.TEXT or \
+               merged[-1].page_idx != item.page_idx:
+                merged.append(item)
+                continue
+            last = merged[-1]
+            if len(last.text or "") < BLOCK_MIN_SIZE:
+                old_len = len(last.text or "")
+                last.text = (last.text or "") + (item.text or "")
+                merged_count += 1
+                logger.debug("合并文本: page=%d %d字 + %d字 = %d字",
+                             item.page_idx, old_len, len(item.text or ""), len(last.text))
+            else:
+                merged.append(item)
+        if merged_count:
+            logger.info("相邻文本合并: %d 项合并为 %d 项", merged_count, len(merged))
+        else:
+            logger.debug("无需合并文本, 最终 %d 项", len(merged))
+        return merged
+
+    # ==================== 上传与下载 ====================
 
     def _apply_upload_urls(self, files: list[tuple[bytes, str]]) -> tuple[str, list[str]]:
         file_list = []
@@ -206,7 +385,7 @@ class MineruClient:
             raise RuntimeError(f"申请上传地址失败: {body.get('msg')}")
 
         data = body.get("data", {})
-        logger.info("申请上传地址成功: batch_id=%s", data.get("batch_id"))
+        logger.info("申请上传地址成功: batch_id=%s urls=%d", data.get("batch_id"), len(data.get("file_urls", [])))
         return data["batch_id"], data["file_urls"]
 
     def _upload_files(self, files: list[tuple[bytes, str]], upload_urls: list[str]):
@@ -242,41 +421,6 @@ class MineruClient:
                     pictures[name] = z.read(name)
         logger.debug("图片提取完成: %d 张", len(pictures))
         return pictures
-
-    def _merge_content(self, content: list[ContentItem],
-                       pictures: dict[str, bytes],
-                       process_images: bool = True) -> list[ContentItem]:
-        result = []
-        pending_images = []
-
-        for item in content:
-            if item.type == ContentType.PAGE_NUMBER or item.type == ContentType.HEADER:
-                continue
-            if item.type == ContentType.IMAGE:
-                pending_images.append(item)
-                continue
-            result.append(item)
-
-        logger.debug("过滤后: %d 项, 待处理图片: %d 张", len(result), len(pending_images))
-
-        if process_images and pending_images:
-            logger.info("开始处理图片: %d 张", len(pending_images))
-            result.extend(self._process_images(pending_images, pictures))
-        else:
-            result.extend(pending_images)
-
-        merged = []
-        for item in result:
-            if item.type != ContentType.TEXT or not merged or merged[-1].page_idx != item.page_idx:
-                merged.append(item)
-            elif merged[-1].type == ContentType.TEXT and len(merged[-1].text or "") < 500:
-                last = merged[-1]
-                last.text = (last.text or "") + (item.text or "")
-            else:
-                merged.append(item)
-
-        logger.debug("合并后: %d 项", len(merged))
-        return merged
 
     def _process_images(self, images: list[ContentItem],
                         pictures: dict[str, bytes]) -> list[ContentItem]:

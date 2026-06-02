@@ -219,12 +219,14 @@ class ModelOut(BaseModel):
 class ConfigCreate(BaseModel):
     user_id: int
     rec_mode: str = "aliyun"
+    enable_enhance: bool = True
     vl_model: str | None = None
     gl_model: str | None = None
 
 
 class ConfigUpdate(BaseModel):
     rec_mode: str | None = None
+    enable_enhance: bool | None = None
     vl_model: str | None = None
     gl_model: str | None = None
 
@@ -233,6 +235,7 @@ class ConfigOut(BaseModel):
     id: int
     user_id: int
     rec_mode: str
+    enable_enhance: bool
     vl_model: str | None
     gl_model: str | None
     create_time: datetime | None
