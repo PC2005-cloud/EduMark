@@ -2,6 +2,7 @@ import logging
 from io import BytesIO
 
 from minio import Minio
+from minio.commonconfig import REPLACE
 from minio.error import S3Error
 
 from app.core.config import settings
@@ -26,8 +27,8 @@ class MinioClient:
         if not self._client.bucket_exists(self._bucket):
             self._client.make_bucket(self._bucket)
             logger.info("创建存储桶: %s", self._bucket)
-        else:
-            logger.debug("存储桶已存在: %s", self._bucket)
+        self._client.set_bucket_policy(self._bucket, self._public_policy())
+        logger.debug("存储桶已设为公共读: %s", self._bucket)
 
     def exists(self, object_name: str) -> bool:
         logger.debug("检查文件: %s", object_name)
@@ -67,8 +68,21 @@ class MinioClient:
         self._client.remove_object(self._bucket, object_name)
         logger.info("删除成功: %s", object_name)
 
+    def _public_policy(self) -> str:
+        import json
+        return json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": {"AWS": ["*"]},
+                "Action": ["s3:GetObject"],
+                "Resource": [f"arn:aws:s3:::{self._bucket}/*"],
+            }],
+        })
+
     def get_url(self, object_name: str) -> str:
-        url = f"http://{settings.MINIO_ENDPOINT}/{self._bucket}/{object_name}"
+        host = settings.MINIO_USER or settings.MINIO_ENDPOINT
+        url = f"http://{host}/{self._bucket}/{object_name}"
         logger.debug("获取文件URL: %s", url)
         return url
 

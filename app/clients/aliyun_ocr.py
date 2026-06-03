@@ -58,7 +58,10 @@ class AliyunOCRClient:
         if not data:
             logger.warning("切题未检测到题目")
             return []
-        questions = self._extract_questions(data)
+        from PIL import Image
+        from io import BytesIO
+        img_w, img_h = Image.open(BytesIO(image_bytes)).size
+        questions = self._extract_questions(data, img_w, img_h)
         logger.info("切题完成: %d 道题", len(questions))
         return questions
 
@@ -100,7 +103,7 @@ class AliyunOCRClient:
         return data
 
     @staticmethod
-    def _extract_questions(data: dict) -> list[PaperQuestion]:
+    def _extract_questions(data: dict, img_w: int = 1, img_h: int = 1) -> list[PaperQuestion]:
         questions = []
         page_list = data.get("page_list", [])
         logger.debug("切题原始数据: %d 页", len(page_list))
@@ -133,8 +136,10 @@ class AliyunOCRClient:
                 if x >= 0 and y >= 0 and width > 0 and height > 0:
                     questions.append(PaperQuestion(
                         question_no=str(page_idx * 100 + idx),
-                        x1=int(x), y1=int(y),
-                        x2=int(x + width), y2=int(y + height),
+                        x1=round(x / img_w, 4),
+                        y1=round(y / img_h, 4),
+                        x2=round((x + width) / img_w, 4),
+                        y2=round((y + height) / img_h, 4),
                         text=text.strip() or None,
                     ))
         return questions

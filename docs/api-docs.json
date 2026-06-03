@@ -555,15 +555,54 @@
         "summary": "提交作业",
         "description": "提交作业，返回task_id",
         "operationId": "submit_homework_api_v1_homework_submit_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Subject"
+            }
+          },
+          {
+            "name": "grade",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Grade"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "$ref": "#/components/schemas/Body_submit_homework_api_v1_homework_submit_post"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -584,12 +623,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/homework/task/page": {

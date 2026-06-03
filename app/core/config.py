@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     # MinIO
     MINIO_ENDPOINT: str = "localhost:7090"
+    MINIO_USER: str = "localhost:7090"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
     MINIO_BUCKET: str = "edumark"

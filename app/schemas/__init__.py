@@ -120,20 +120,20 @@ class QuestionOut(BaseModel):
 class BlockCreate(BaseModel):
     question_id: int | None = None
     url: str
-    x1: int
-    y1: int
-    x2: int
-    y2: int
+    x1: float
+    y1: float
+    x2: float
+    y2: float
 
 
 class BlockOut(BaseModel):
     id: int
     question_id: int | None
     url: str
-    x1: int
-    y1: int
-    x2: int
-    y2: int
+    x1: float
+    y1: float
+    x2: float
+    y2: float
     create_time: datetime | None
 
     model_config = {"from_attributes": True}
@@ -253,10 +253,11 @@ class ConfigOut(BaseModel):
 
 # ===== Homework Result =====
 class BlockInfo(BaseModel):
-    x1: int
-    y1: int
-    x2: int
-    y2: int
+    url: str = ""
+    x1: float
+    y1: float
+    x2: float
+    y2: float
 
 
 class CorrectionInfo(BaseModel):

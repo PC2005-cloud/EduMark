@@ -57,11 +57,11 @@ def homework_grading(self, task_id: str) -> str:
         for img in images:
             data = minio_client.download(img.url)
             fname = Path(img.url).name
-            files.append((data, fname))
+            files.append((data, img.url, fname))
         logger.info("图片已下载: %d 张", len(files))
 
         # 4. 多线程 OCR
-        def ocr_one(img_bytes: bytes) -> list:
+        def ocr_one(img_bytes: bytes, img_url: str) -> list:
             if enable_enhance:
                 try:
                     img_bytes = preprocess(img_bytes)
@@ -69,7 +69,10 @@ def homework_grading(self, task_id: str) -> str:
                     logger.warning("预处理失败: %s", e)
             if rec_mode == "aliyun":
                 try:
-                    return aliyun_ocr.cut_paper(img_bytes)
+                    items = aliyun_ocr.cut_paper(img_bytes)
+                    for it in items:
+                        it.img_url = img_url
+                    return items
                 except Exception as e:
                     logger.warning("切题失败(跳过): %s", e)
                     return []
@@ -78,10 +81,15 @@ def homework_grading(self, task_id: str) -> str:
                     results = bailian.recognize_question([img_bytes], model=vl_model)
                     items = []
                     for r in results:
+                        b = r.bbox or [0, 0, 0, 0]
+                        if len(b) >= 4 and b[0] > 1:
+                            b = [round(v / 1000, 4) for v in b]
                         obj = type("", (), {"text": "", "x1": 0, "y1": 0, "x2": 0, "y2": 0})()
                         obj.text = r.question
                         obj.answer = r.answer
                         obj.type = r.type
+                        obj.img_url = img_url
+                        obj.x1, obj.y1, obj.x2, obj.y2 = b[:4]
                         items.append(obj)
                     return items
                 except Exception as e:
@@ -90,7 +98,7 @@ def homework_grading(self, task_id: str) -> str:
 
         all_questions = []
         with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
-            futures = [executor.submit(ocr_one, data) for data, _ in files]
+            futures = [executor.submit(ocr_one, data, url) for data, url, _ in files]
             for future in as_completed(futures):
                 all_questions.extend(future.result())
 
@@ -105,7 +113,8 @@ def homework_grading(self, task_id: str) -> str:
             )
             quest = QuestionDAO(db).create(quest)
             if hasattr(q, "x1") and (q.x1 or q.y1 or q.x2 or q.y2):
-                block = Block(question_id=quest.id, url="", x1=q.x1, y1=q.y1, x2=q.x2, y2=q.y2)
+                url = getattr(q, "img_url", "") or ""
+                block = Block(question_id=quest.id, url=url, x1=q.x1, y1=q.y1, x2=q.x2, y2=q.y2)
                 BlockDAO(db).create(block)
             question_list.append(quest)
         db.commit()

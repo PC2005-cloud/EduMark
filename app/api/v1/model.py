@@ -4,7 +4,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.api.v1.router import router_v1
-from app.core.dependencies import require_role
+from app.core.dependencies import get_current_user, require_role
 from app.core.response import PageDTO, Result
 from app.dao.model_dao import ModelDAO
 from app.models import get_db
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @router_v1.get("/models/{id}", summary="查询模型", description="查询模型")
-def get_model(id: int, db: Session = Depends(get_db), _=Depends(require_role("admin"))):
+def get_model(id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     m = ModelDAO(db).get_by_id(id)
     return Result.success(ModelOut.model_validate(m)) if m else Result.error("not found")
 
@@ -39,7 +39,7 @@ def delete_model(id: int, db: Session = Depends(get_db), _=Depends(require_role(
 
 
 @router_v1.post("/models/page", summary="分页查询模型", description="分页查询模型")
-def page_model(dto: PageDTO, db: Session = Depends(get_db), _=Depends(require_role("admin"))):
+def page_model(dto: PageDTO, db: Session = Depends(get_db), _=Depends(get_current_user)):
     result = ModelDAO(db).list(page=dto.page_num, page_size=dto.page_size)
     result.rows = [ModelOut.model_validate(r) for r in result.rows]
     return Result.success(result)

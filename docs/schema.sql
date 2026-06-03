@@ -74,10 +74,10 @@ CREATE TABLE IF NOT EXISTS `block` (
     `id`          INT          NOT NULL AUTO_INCREMENT  COMMENT '主键',
     `question_id` INT          DEFAULT NULL             COMMENT '所属题目 FK → question.id',
     `url`         VARCHAR(512) NOT NULL                 COMMENT '裁剪子图 MinIO 路径',
-    `x1`          INT          NOT NULL                 COMMENT '左上角 x',
-    `y1`          INT          NOT NULL                 COMMENT '左上角 y',
-    `x2`          INT          NOT NULL                 COMMENT '右下角 x',
-    `y2`          INT          NOT NULL                 COMMENT '右下角 y',
+    `x1`          DOUBLE       NOT NULL                 COMMENT '左上角 x（归一化 0-1）',
+    `y1`          DOUBLE       NOT NULL                 COMMENT '左上角 y（归一化 0-1）',
+    `x2`          DOUBLE       NOT NULL                 COMMENT '右下角 x（归一化 0-1）',
+    `y2`          DOUBLE       NOT NULL                 COMMENT '右下角 y（归一化 0-1）',
     `create_time` DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
@@ -155,3 +155,19 @@ CREATE TABLE IF NOT EXISTS `config` (
     UNIQUE KEY `uk_user_id` (`user_id`),
     CONSTRAINT `fk_config_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户配置表';
+
+INSERT INTO edumark.model (id, name, mode) VALUES (1, 'qwen3.7-plus', 1);
+INSERT INTO edumark.model (id, name, mode) VALUES (2, 'qwen3.6-max', 2);
+INSERT INTO edumark.model (id, name, mode) VALUES (3, 'qwen3-vl-plus', 1);
+INSERT INTO edumark.model (id, name, mode) VALUES (4, 'qwen3.5-plus', 1);
+INSERT INTO edumark.model (id, name, mode) VALUES (5, 'qwen-plus', 2);
+INSERT INTO edumark.model (id, name, mode) VALUES (6, 'deepseek-v4-flash', 2);
+INSERT INTO edumark.model (id, name, mode) VALUES (7, 'qwen-vl-max', 1);
+
+INSERT INTO edumark.user (id, account, username, email, password, role, is_active, create_time, update_time) VALUES (1, 'root', 'root', null, '$2b$12$XTThB.COmWVwn.fshAKvoe61vIr4vCzaI5qMBk2./o8n9XvUadPFe', 'admin', 1, null, null);
+INSERT INTO edumark.user (id, account, username, email, password, role, is_active, create_time, update_time) VALUES (2, 'teacher', 'teacher', null, '$2b$12$k3jkX.L89LRhtk4cRjVzbOvJmwYHNIfqWEHQUOBlgQHzRFRmU/KKG', 'teacher', 1, null, null);
+INSERT INTO edumark.user (id, account, username, email, password, role, is_active, create_time, update_time) VALUES (3, 'student01', 'student01', null, '$2b$12$JXDeU20MopMRh6DCl6SWlO6bPKM3vIrAfXJ1bx5ICcSz024mDHP3u', 'student', 1, null, null);
+INSERT INTO edumark.user (id, account, username, email, password, role, is_active, create_time, update_time) VALUES (4, 'student02', 'student02', null, '$2b$12$4Isi.a1G9LOBQckjdu05tObY3vZSpg/5Bg69ZosgK0BHaYfN2bi.2', 'student', 1, null, null);
+
+INSERT INTO edumark.config (id, user_id, rec_mode, enable_enhance, enable_knowledge, vl_model, gl_model, create_time, update_time) VALUES (1, 3, 'aliyun', 1, 1, null, null, null, null);
+INSERT INTO edumark.config (id, user_id, rec_mode, enable_enhance, enable_knowledge, vl_model, gl_model, create_time, update_time) VALUES (2, 4, 'bailian', 0, 0, 'qwen3.7-plus', 'qwen-plus', null, '2026-06-03 01:52:23');

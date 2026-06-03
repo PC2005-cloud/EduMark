@@ -1,6 +1,6 @@
 # EduMark — 基于大模型的中小学作业批改系统
 
-自动识别和批改中小学生作业的智能批改系统，利用 阿里云 OCR、百炼视觉模型 和大语言模型，实现从作业图像上传到自动批改的全流程。
+自动识别和批改中小学生作业的智能批改系统，利用阿里云 OCR、百炼视觉模型和大语言模型，实现从作业图像上传到自动批改的全流程。
 
 ---
 
@@ -28,25 +28,29 @@
 
 ---
 
-## 启动
+## 快速开始
 
 ### 环境要求
 - Python 3.12+
-- MySQL 8.0+
-- Redis 7+
-- MinIO
-- Qdrant
+- UV 包管理器
+- MySQL 8.0+、Redis、MinIO、Qdrant
+
+### 安装依赖
+
+```bash
+uv sync
+```
 
 ### 启动 API 服务
 
 ```bash
-.venv/Scripts/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 启动 Celery Worker（处理后台上传/批改任务）
+### 启动 Celery Worker
 
 ```bash
-.venv/Scripts/python -m celery -A app.tasks.celery_app worker --loglevel=info -P solo
+uv run celery -A app.tasks.celery_app worker --loglevel=info -P solo
 ```
 
 ### 接口文档
@@ -55,8 +59,8 @@
 
 | 地址 | 说明 |
 |---|---|
-| `http://localhost:8000/docs` | Swagger UI（交互式调试） |
-| `http://localhost:8000/redoc` | ReDoc（文档式） |
+| `http://localhost:8000/docs` | Swagger UI |
+| `http://localhost:8000/redoc` | ReDoc |
 | `http://localhost:8000/openapi.json` | OpenAPI JSON 下载 |
 
 ---
@@ -91,18 +95,17 @@ POST /knowledge/upload → 返回 knowledge_id
 
 | 层面 | 选型 |
 |---|---|
-| 后端 | FastAPI (Python) + SQLAlchemy |
+| 后端 | FastAPI + SQLAlchemy |
 | 数据库 | MySQL 8.0 |
 | 任务队列 | Celery + Redis |
 | 对象存储 | MinIO |
 | 向量数据库 | Qdrant |
-| 图像预处理 | Pillow（对比度+锐度增强） |
-| 识别引擎一 | 阿里云 RecognizeEduPaperCut + RecognizeEduQuestionOcr |
-| 识别引擎二 | 百炼 Qwen-VL 视觉模型 |
-| 批改引擎 | 百炼 Qwen-Plus 文本模型 |
-| 向量化模型 | text-embedding-v4（1536 维） |
+| 图像预处理 | Pillow |
+| 识别引擎一 | 阿里云 OCR |
+| 识别引擎二 | 百炼 Qwen-VL |
+| 批改引擎 | 百炼 Qwen-Plus |
+| 向量化模型 | text-embedding-v4 |
 | 文档解析 | MinerU |
-| 部署 | Docker Compose |
 
 ---
 
@@ -129,21 +132,17 @@ POST /knowledge/upload → 返回 knowledge_id
 | DELETE | `/knowledge/{id}` | 删除文档 | 教师/管理员 |
 | POST | `/knowledge/page` | 文档列表 | 登录 |
 | POST | `/knowledge/upload` | 上传文档 | 教师/管理员 |
-| GET | `/models/{id}` | 模型详情 | 管理员 |
+| GET | `/models/{id}` | 模型详情 | 登录 |
 | POST | `/models` | 新增模型 | 管理员 |
 | PUT | `/models/{id}` | 编辑模型 | 管理员 |
 | DELETE | `/models/{id}` | 删除模型 | 管理员 |
-| POST | `/models/page` | 模型列表 | 管理员 |
+| POST | `/models/page` | 模型列表 | 登录 |
 
 ---
 
 ## 数据库
 
-10 张关系表：
-
-`user` → `task` → `image` / `question` → `block` → `correction`
-`user` → `knowledge` → `question_chunk`
-`user` → `config` → `model`
+10 张关系表：`user` → `task` → `image` / `question` → `block` → `correction`，`knowledge` → `question_chunk`，`config`，`model`
 
 向量库：Qdrant `knowledge_chunks`（1536 维，Cosine 距离）
 
@@ -151,9 +150,39 @@ POST /knowledge/upload → 返回 knowledge_id
 
 ## Docker 部署
 
+### 检查环境
+- 检查wsl环境
+
+```
+wsl -l -v
+```
+
+```
+ NAME              STATE           VERSION
+* Ubuntu-22.04      Running         2
+  docker-desktop    Running         2
+```
+
+- 确保已安装 Docker Desktop
+
+```
+docker --version
+docker-compose --version
+docker ps
+```
+
+### 构建镜像
+
 ```bash
-docker-compose up -d mysql redis minio qdrant
-# 再启动 app 和 worker
-docker-compose up -d app
-docker-compose run worker
+docker build -t edumark-fastapi:latest .
+```
+
+### 生成配置文件
+
+双击 `init-deploy.bat` 生成配置文件（MySQL / Redis / MinIO / Qdrant / Nginx 配置），然后复制到 Linux 服务器。
+
+### 启动服务
+
+```bash
+docker-compose -f /EduMark/em-com.yml up -d
 ```
