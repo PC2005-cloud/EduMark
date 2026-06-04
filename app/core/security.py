@@ -4,6 +4,7 @@ import bcrypt
 from jose import JWTError, jwt
 
 from app.core.config import settings
+from app.schemas import CurrentUser
 
 
 def hash_password(password: str) -> str:
@@ -14,22 +15,18 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 
-def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    if "sub" in to_encode:
-        to_encode["sub"] = str(to_encode["sub"])
+def create_access_token(user: CurrentUser) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode({
+        "sub": str(user.id), "role": user.role, "account": user.account, "exp": expire,
+    }, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_refresh_token(data: dict) -> str:
-    to_encode = data.copy()
-    if "sub" in to_encode:
-        to_encode["sub"] = str(to_encode["sub"])
+def create_refresh_token(user: CurrentUser) -> str:
     expire = datetime.now(timezone.utc) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
-    return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode({
+        "sub": str(user.id), "role": user.role, "account": user.account, "exp": expire, "type": "refresh",
+    }, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
 def decode_token(token: str) -> dict | None:

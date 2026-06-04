@@ -3,11 +3,12 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 
 from app.core.config import settings
+from app.schemas import CurrentUser
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> CurrentUser:
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not authenticated")
     try:
@@ -19,14 +20,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
-        return {"id": int(user_id), "role": payload.get("role"), "account": payload.get("account")}
+        return CurrentUser(id=int(user_id), role=payload.get("role"), account=payload.get("account"))
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
 
 
 def require_role(*roles: str):
-    async def checker(user: dict = Depends(get_current_user)):
-        if user.get("role") not in roles:
+    async def checker(user: CurrentUser = Depends(get_current_user)):
+        if user.role not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="role not allowed")
         return user
     return checker

@@ -51,9 +51,50 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="EduMark",
-    description="基于大模型的中小学作业批改系统",
+    description="""
+基于大模型的中小学作业批改系统，提供以下核心能力：
+
+- **作业提交与批改**：上传作业图片，自动识别题目并进行 AI 批改
+- **知识库管理**：上传教学资料，构建知识库辅助批改
+- **用户管理**：学生/老师/管理员三种角色，权限分级
+- **模型管理**：配置视觉模型和语言模型
+- **配置管理**：个性化识别模式与增强选项
+""",
     version="0.1.0",
     lifespan=lifespan,
+    contact={
+        "name": "EduMark Team",
+        "email": "admin@edumark.com",
+    },
+    license_info={
+        "name": "MIT",
+    },
+    openapi_tags=[
+        {
+            "name": "认证管理",
+            "description": "用户注册、登录、令牌刷新、获取当前用户信息",
+        },
+        {
+            "name": "用户管理",
+            "description": "管理员对用户的增删改查操作",
+        },
+        {
+            "name": "作业管理",
+            "description": "作业提交、批改进度查询、批改结果获取、作业删除",
+        },
+        {
+            "name": "知识文档",
+            "description": "知识文档的上传、查询、分页、删除，支持异步解析",
+        },
+        {
+            "name": "模型管理",
+            "description": "视觉模型和语言模型的增删改查",
+        },
+        {
+            "name": "配置管理",
+            "description": "用户个性化配置，包括识别模式、模型选择、增强开关",
+        },
+    ],
 )
 app.add_middleware(
     CORSMiddleware,
