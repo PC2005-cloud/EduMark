@@ -11,16 +11,6 @@ class Result(BaseModel, Generic[T]):
     message: str = Field(description="提示信息，成功时为 'success'，失败时为错误描述")
     data: T | None = Field(None, description="响应数据，成功时返回业务数据，失败时为 null")
 
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "code": 1,
-                "message": "success",
-                "data": None,
-            }
-        }
-    }
-
     @staticmethod
     def success(data: T | None = None) -> "Result[T]":
         return Result(code=1, message="success", data=data)
@@ -54,12 +44,3 @@ class PageDTO(BaseModel):
 class PageVO(BaseModel, Generic[T]):
     total: int = Field(description="总记录数")
     rows: list[T] = Field(description="当前页数据列表")
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "total": 100,
-                "rows": [],
-            }
-        }
-    }

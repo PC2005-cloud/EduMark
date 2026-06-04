@@ -17,5 +17,5 @@ class Knowledge(Base):
     grade: Mapped[str] = mapped_column(String(16), nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     chunk: Mapped[int] = mapped_column(Integer, default=0)
-    create_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    update_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    update_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)

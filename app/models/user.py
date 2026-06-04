@@ -16,5 +16,5 @@ class User(Base):
     password: Mapped[str] = mapped_column(String(256), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="student")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    create_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    update_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    update_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)

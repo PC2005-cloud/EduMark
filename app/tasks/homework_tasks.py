@@ -134,6 +134,7 @@ def homework_grading(self, task_id: str) -> str:
                         chunk_refs.append({
                             "knowledge_id": p.get("document_id"),
                             "content": p.get("content", ""),
+                            "chunk_id": r.get("id"),
                             "score": r.get("score", 0),
                         })
                 except Exception as e:
@@ -162,9 +163,10 @@ def homework_grading(self, task_id: str) -> str:
                     CorrectionDAO(db).create(corr)
                     for ref in refs:
                         kid = ref.get("knowledge_id")
-                        if kid:
+                        chunk_id = ref.get("chunk_id")
+                        if kid and chunk_id is not None:
                             db.add(QuestionChunk(
-                                question_id=corr.question_id, knowledge_id=kid, chunk_id=str(kid),
+                                question_id=corr.question_id, knowledge_id=kid, chunk_id=str(chunk_id),
                             ))
                     corrections.append(corr)
         db.commit()

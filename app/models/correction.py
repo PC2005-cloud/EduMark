@@ -15,5 +15,5 @@ class Correction(Base):
     result: Mapped[str] = mapped_column(String(16), nullable=False)
     comment: Mapped[str] = mapped_column(Text, nullable=True)
     analysis: Mapped[str] = mapped_column(Text, nullable=True)
-    create_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    update_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    update_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)

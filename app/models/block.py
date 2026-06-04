@@ -16,5 +16,5 @@ class Block(Base):
     y1: Mapped[float] = mapped_column(Float, nullable=False)
     x2: Mapped[float] = mapped_column(Float, nullable=False)
     y2: Mapped[float] = mapped_column(Float, nullable=False)
-    create_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    update_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    update_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)

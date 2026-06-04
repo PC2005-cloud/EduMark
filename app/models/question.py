@@ -15,5 +15,5 @@ class Question(Base):
     question_text: Mapped[str] = mapped_column(Text, nullable=True)
     student_answer: Mapped[str] = mapped_column(Text, nullable=True)
     question_type: Mapped[str] = mapped_column(String(16), nullable=True)
-    create_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    update_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    update_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)

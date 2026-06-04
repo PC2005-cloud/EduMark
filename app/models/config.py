@@ -16,5 +16,5 @@ class Config(Base):
     enable_knowledge: Mapped[bool] = mapped_column(Boolean, default=True)
     vl_model: Mapped[str] = mapped_column(String(64), nullable=True)
     gl_model: Mapped[str] = mapped_column(String(64), nullable=True)
-    create_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    update_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    update_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)

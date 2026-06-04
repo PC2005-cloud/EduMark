@@ -13,5 +13,5 @@ class QuestionChunk(Base):
     question_id: Mapped[int] = mapped_column(Integer, nullable=False)
     knowledge_id: Mapped[int] = mapped_column(Integer, nullable=False)
     chunk_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    create_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
-    update_time: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    create_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    update_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)

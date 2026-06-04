@@ -108,8 +108,8 @@ class TaskCreate(BaseModel):
     user_id: int = Field(description="所属用户 ID")
     subject: str | None = Field(None, description="科目，如语文、数学、英语等")
     grade: str | None = Field(None, description="年级，如一年级、二年级等")
-    mode: str = Field(description="批改模式")
-    status: str = Field("pending", description="任务状态：pending=待处理，processing=处理中，done=已完成")
+    mode: str = Field(description="批改模式：aliyun=阿里云，或百炼视觉模型名如 qwen-vl-plus")
+    status: str = Field("pending", description="任务状态：pending=待处理，processing=处理中，completed=已完成，failed=失败")
 
 
 class TaskUpdate(BaseModel):
@@ -124,8 +124,8 @@ class TaskOut(BaseModel):
     user_id: int = Field(description="所属用户 ID")
     subject: str | None = Field(None, description="科目")
     grade: str | None = Field(None, description="年级")
-    mode: str = Field(description="批改模式")
-    status: str = Field(description="任务状态")
+    mode: str = Field(description="批改模式：aliyun=阿里云，或百炼视觉模型名")
+    status: str = Field(description="任务状态：pending=待处理，processing=处理中，completed=已完成，failed=失败")
     create_time: datetime | None = Field(None, description="创建时间")
     update_time: datetime | None = Field(None, description="最后更新时间")
 
@@ -225,11 +225,11 @@ class BlockCreate(BaseModel):
 class BlockOut(BaseModel):
     id: int = Field(description="裁切块记录 ID")
     question_id: int | None = Field(None, description="所属题目 ID")
-    url: str = Field(description="裁切块图片存储路径")
-    x1: float = Field(description="裁切区域左上角 X 坐标")
-    y1: float = Field(description="裁切区域左上角 Y 坐标")
-    x2: float = Field(description="裁切区域右下角 X 坐标")
-    y2: float = Field(description="裁切区域右下角 Y 坐标")
+    url: str = Field(description="裁切块所属原始图片的存储路径")
+    x1: float = Field(description="裁切区域左上角 X 坐标（百分比，范围 0~1）")
+    y1: float = Field(description="裁切区域左上角 Y 坐标（百分比，范围 0~1）")
+    x2: float = Field(description="裁切区域右下角 X 坐标（百分比，范围 0~1）")
+    y2: float = Field(description="裁切区域右下角 Y 坐标（百分比，范围 0~1）")
     create_time: datetime | None = Field(None, description="创建时间")
 
     model_config = {
@@ -238,11 +238,11 @@ class BlockOut(BaseModel):
             "example": {
                 "id": 1,
                 "question_id": 1,
-                "url": "homework/1/blocks/1717488000_q1.jpg",
-                "x1": 100.0,
-                "y1": 50.0,
-                "x2": 500.0,
-                "y2": 200.0,
+                "url": "homework/1/1717488000_math_homework.jpg",
+                "x1": 0.12,
+                "y1": 0.08,
+                "x2": 0.65,
+                "y2": 0.35,
                 "create_time": "2026-06-04T10:01:00",
             }
         },
@@ -268,8 +268,8 @@ class CorrectionUpdate(BaseModel):
 class CorrectionOut(BaseModel):
     id: int = Field(description="批改记录 ID")
     question_id: int = Field(description="所属题目 ID")
-    score: float = Field(description="得分")
-    result: str = Field(description="批改结果标识")
+    score: float = Field(description="得分（满分 10 分）")
+    result: str = Field(description="批改结果：correct=正确，wrong=错误，partial=部分正确")
     comment: str | None = Field(None, description="评语")
     analysis: str | None = Field(None, description="错因分析")
     create_time: datetime | None = Field(None, description="创建时间")
@@ -303,7 +303,7 @@ class KnowledgeUpdate(BaseModel):
     title: str | None = Field(None, description="知识文档标题")
     subject: str | None = Field(None, description="科目")
     grade: str | None = Field(None, description="年级")
-    status: str | None = Field(None, description="文档状态：pending=待处理，parsing=解析中，done=已完成")
+    status: str | None = Field(None, description="文档状态：pending=待处理，parsing=解析中，completed=已完成，failed=失败")
 
 
 class KnowledgeOut(BaseModel):
@@ -313,7 +313,7 @@ class KnowledgeOut(BaseModel):
     url: str = Field(description="知识文档存储路径")
     subject: str | None = Field(None, description="科目")
     grade: str | None = Field(None, description="年级")
-    status: str = Field(description="文档状态")
+    status: str = Field(description="文档状态：pending=待处理，parsing=解析中，completed=已完成，failed=失败")
     chunk: int = Field(description="解析后分块数量")
     create_time: datetime | None = Field(None, description="创建时间")
 
@@ -346,7 +346,7 @@ class QuestionChunkOut(BaseModel):
     id: int = Field(description="关联记录 ID")
     question_id: int = Field(description="所属题目 ID")
     knowledge_id: int = Field(description="关联知识文档 ID")
-    chunk_id: str = Field(description="匹配的分块 ID")
+    chunk_id: str = Field(description="Qdrant 中匹配的知识分块 ID")
     create_time: datetime | None = Field(None, description="创建时间")
 
     model_config = {
@@ -356,7 +356,7 @@ class QuestionChunkOut(BaseModel):
                 "id": 1,
                 "question_id": 1,
                 "knowledge_id": 1,
-                "chunk_id": "chunk-abc123def456",
+                "chunk_id": "10000",
                 "create_time": "2026-06-04T10:05:00",
             }
         },
@@ -426,28 +426,28 @@ class ConfigOut(BaseModel):
 
 # ===== Homework Result =====
 class BlockInfo(BaseModel):
-    url: str = Field("", description="裁切块图片访问地址")
-    x1: float = Field(description="裁切区域左上角 X 坐标")
-    y1: float = Field(description="裁切区域左上角 Y 坐标")
-    x2: float = Field(description="裁切区域右下角 X 坐标")
-    y2: float = Field(description="裁切区域右下角 Y 坐标")
+    url: str = Field("", description="裁切块所属原始图片的访问地址")
+    x1: float = Field(description="裁切区域左上角 X 坐标（百分比，范围 0~1）")
+    y1: float = Field(description="裁切区域左上角 Y 坐标（百分比，范围 0~1）")
+    x2: float = Field(description="裁切区域右下角 X 坐标（百分比，范围 0~1）")
+    y2: float = Field(description="裁切区域右下角 Y 坐标（百分比，范围 0~1）")
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "url": "https://minio.example.com/homework/1/blocks/1717488000_q1.jpg",
-                "x1": 100.0,
-                "y1": 50.0,
-                "x2": 500.0,
-                "y2": 200.0,
+                "url": "https://minio.example.com/homework/1/1717488000_math_homework.jpg",
+                "x1": 0.12,
+                "y1": 0.08,
+                "x2": 0.65,
+                "y2": 0.35,
             }
         }
     }
 
 
 class CorrectionInfo(BaseModel):
-    score: float = Field(description="得分")
-    result: str = Field(description="批改结果标识")
+    score: float = Field(description="得分（满分 10 分）")
+    result: str = Field(description="批改结果：correct=正确，wrong=错误，partial=部分正确")
     comment: str | None = Field(None, description="评语")
     analysis: str | None = Field(None, description="错因分析")
 
@@ -501,11 +501,11 @@ class QuestionResult(BaseModel):
                 "create_time": "2026-06-04T10:01:00",
                 "blocks": [
                     {
-                        "url": "https://minio.example.com/homework/1/blocks/1717488000_q1.jpg",
-                        "x1": 100.0,
-                        "y1": 50.0,
-                        "x2": 500.0,
-                        "y2": 200.0,
+                        "url": "https://minio.example.com/homework/1/1717488000_math_homework.jpg",
+                        "x1": 0.12,
+                        "y1": 0.08,
+                        "x2": 0.65,
+                        "y2": 0.35,
                     }
                 ],
                 "correction": {
@@ -570,8 +570,8 @@ class HomeworkResult(BaseModel):
                         "create_time": "2026-06-04T10:01:00",
                         "blocks": [
                             {
-                                "url": "https://minio.example.com/homework/1/blocks/1717488000_q1.jpg",
-                                "x1": 100.0, "y1": 50.0, "x2": 500.0, "y2": 200.0,
+                                "url": "https://minio.example.com/homework/1/1717488000_math_homework.jpg",
+                                "x1": 0.12, "y1": 0.08, "x2": 0.65, "y2": 0.35,
                             }
                         ],
                         "correction": {
