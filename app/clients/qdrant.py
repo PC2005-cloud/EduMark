@@ -75,6 +75,18 @@ class QdrantClient:
         logger.info("搜索完成: %d 条结果", len(result.get("result", [])))
         return result.get("result", [])
 
+    def get_points_by_ids(self, ids: list[int]) -> list[dict]:
+        logger.info("批量查询 points: %d 个", len(ids))
+        results = self._client.retrieve(
+            collection_name=self._collection,
+            ids=ids,
+            with_payload=True,
+        )
+        return [
+            {"id": r.id, "payload": r.payload}
+            for r in results
+        ]
+
     def delete(self, filter_conditions: dict):
         logger.info("删除向量: filter=%s", filter_conditions)
         self._client.delete(

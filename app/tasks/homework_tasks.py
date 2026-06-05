@@ -24,7 +24,7 @@ from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
-_MAX_WORKERS = 5
+_MAX_WORKERS = 10
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -128,15 +128,33 @@ def homework_grading(self, task_id: str) -> str:
                 try:
                     vec = bailian.embed([text])[0]
                     sf = {"subject": task.subject} if task.subject else None
-                    results = qdrant.search(vec, top_k=3, filter_conditions=sf)
-                    for r in results:
+
+                    # 阶段一：搜 child（句子），按 parent_id 聚合取最高分
+                    child_filter = dict(sf or {})
+                    child_filter["node_type"] = "child"
+                    child_results = qdrant.search(vec, top_k=3, score_threshold=0.1, filter_conditions=child_filter)
+
+                    parent_scores: dict[int, float] = {}
+                    for r in child_results:
                         p = r.get("payload", {})
-                        chunk_refs.append({
-                            "knowledge_id": p.get("document_id"),
-                            "content": p.get("content", ""),
-                            "chunk_id": r.get("id"),
-                            "score": r.get("score", 0),
-                        })
+                        parent_id = p.get("parent_id")
+                        score = r.get("score", 0)
+                        if parent_id is not None:
+                            if parent_id not in parent_scores or score > parent_scores[parent_id]:
+                                parent_scores[parent_id] = score
+
+                    # 阶段二：按 parent_id 批量取 parent 段落，复用 child 最高分
+                    if parent_scores:
+                        parent_points = qdrant.get_points_by_ids(list(parent_scores.keys()))
+                        for pp in parent_points:
+                            p = pp.get("payload", {})
+                            pid = pp.get("id")
+                            chunk_refs.append({
+                                "knowledge_id": p.get("document_id"),
+                                "content": p.get("content", ""),
+                                "chunk_id": pid,
+                                "score": parent_scores.get(pid, 0),
+                            })
                 except Exception as e:
                     logger.warning("知识检索失败: question_id=%d %s", quest_id, e)
             try:

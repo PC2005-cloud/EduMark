@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:7379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:7379/1"
-    CELERY_TASK_TIMEOUT: int = 300
+    CELERY_TASK_TIMEOUT: int = 1800
     CELERY_MAX_RETRIES: int = 3
 
     # Qdrant

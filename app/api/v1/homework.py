@@ -13,7 +13,9 @@ from app.dao.image_dao import ImageDAO
 from app.dao.question_dao import QuestionDAO
 from app.dao.correction_dao import CorrectionDAO
 from app.dao.block_dao import BlockDAO
+from app.clients.bailian import bailian
 from app.clients.minio import minio_client
+from app.clients.qdrant import qdrant
 from app.models import get_db
 from app.models.image import Image
 from app.models.knowledge import Knowledge
@@ -194,11 +196,26 @@ def get_result(
         refs = []
         for ch in chunks:
             kn = db.query(Knowledge).filter(Knowledge.id == ch.knowledge_id).first()
+            content = ""
+            score = 0.0
+            try:
+                resp = qdrant._http.post(
+                    f"/collections/knowledge_chunks/points",
+                    json={"ids": [int(ch.chunk_id)], "with_payload": True, "with_vector": False},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    pts = resp.json().get("result", [])
+                    if pts:
+                        content = pts[0].get("payload", {}).get("content", "")
+                        score = 0.5
+            except Exception as e:
+                logger.warning("知识块查询失败: %s", e)
             refs.append(KnowledgeRef(
                 knowledge_id=ch.knowledge_id,
                 title=kn.title if kn else "",
-                content="",
-                score=0.0,
+                content=content,
+                score=score,
             ))
 
         question_results.append(QuestionResult(

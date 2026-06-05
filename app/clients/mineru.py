@@ -1,5 +1,6 @@
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from io import BytesIO
 from typing import Optional
@@ -17,6 +18,7 @@ MAX_PAGE = 200
 MAX_SIZE = 200 * 1024 * 1024
 BLOCK_MIN_SIZE = 500
 BLOCK_MAX_SIZE = 2000
+_MAX_WORKERS = 10
 
 SUPPORTED_TYPES = [
     "application/pdf",
@@ -424,38 +426,39 @@ class MineruClient:
 
     def _process_images(self, images: list[ContentItem],
                         pictures: dict[str, bytes]) -> list[ContentItem]:
-        logger.info("图片转描述: %d 张", len(images))
-        result = []
-        for i, item in enumerate(images):
+        logger.info("图片转描述: %d 张, 多线程并发 (workers=%d)", len(images), _MAX_WORKERS)
+
+        def _process_one(item: ContentItem) -> ContentItem:
             img_data = pictures.get(item.img_path or "")
+            text_item = ContentItem()
+            text_item.type = ContentType.TEXT
+            text_item.page_idx = item.page_idx
+
             if not img_data:
                 logger.warning("图片文件未找到: %s", item.img_path)
-                text_item = ContentItem()
-                text_item.type = ContentType.TEXT
                 text_item.text = "[图片文件未找到]"
-                text_item.page_idx = item.page_idx
-                result.append(text_item)
-                continue
+                return text_item
 
             prompt = "请详细描述这张图片的内容，包括其中的文字、公式、图表等所有信息。"
-            logger.info("图片描述[%d/%d]: %s", i + 1, len(images), item.img_path)
+            logger.info("图片描述: %s", item.img_path)
             try:
                 desc = bailian.understand_image(img_data, prompt)
-                text_item = ContentItem()
-                text_item.type = ContentType.TEXT
                 text_item.text = f"[图片描述] {desc}"
-                text_item.page_idx = item.page_idx
-                result.append(text_item)
-                logger.info("图片描述完成[%d/%d]: %s", i + 1, len(images), item.img_path)
+                logger.info("图片描述完成: %s", item.img_path)
             except Exception as e:
-                logger.error("图片描述失败[%d/%d]: %s %s", i + 1, len(images), item.img_path, e)
-                text_item = ContentItem()
-                text_item.type = ContentType.TEXT
+                logger.error("图片描述失败: %s %s", item.img_path, e)
                 text_item.text = f"[图片描述失败: {e}]"
-                text_item.page_idx = item.page_idx
-                result.append(text_item)
+            return text_item
 
-        return result
+        results = []
+        with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as executor:
+            futures = [executor.submit(_process_one, item) for item in images]
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        # 保持与原顺序一致
+        results.sort(key=lambda r: r.page_idx)
+        return results
 
 
 mineru_client = MineruClient()

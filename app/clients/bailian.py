@@ -84,7 +84,7 @@ class BailianClient:
               dimensions: int = 1536) -> list[list[float]]:
         model = model or settings.BAILIAN_EMBED
         logger.info("向量化: model=%s texts=%d条 dimensions=%d", model, len(texts), dimensions)
-        batch_size = 25
+        batch_size = 10
         url = f"{self._base}/services/embeddings/text-embedding/text-embedding"
         all_vecs = []
         for i in range(0, len(texts), batch_size):
@@ -95,6 +95,9 @@ class BailianClient:
             logger.debug("向量化批次: %d/%d size=%d", i // batch_size + 1,
                          (len(texts) + batch_size - 1) // batch_size, len(batch))
             resp = httpx.post(url, headers=self._headers, json=body, timeout=30)
+            if resp.is_error:
+                logger.error("向量化请求失败: status=%s body=%s batch=%s",
+                             resp.status_code, resp.text, batch)
             resp.raise_for_status()
             body = resp.json()
             all_vecs.extend(item["embedding"] for item in body["output"]["embeddings"])
